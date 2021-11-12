@@ -108,13 +108,82 @@ def high_low_deliv():
   bhavcopy=bhavcopy[bhavcopy.index.isin(nse.symbols[index_name])]
   st.write(bhavcopy.head(int(no_of_stocks)))
 
+def stock_oi_data():
 
+    with st.sidebar:
+          symbol=st.selectbox('symbol',nse.symbols[IndexSymbol.FnO.name])
+          from_date=st.date_input('From Date',datetime.date.today()-datetime.timedelta(days=30))
+          to_date=st.date_input('To Date',datetime.date.today())
 
+    if(to_date<from_date or to_date>datetime.date.today()):
+        st.error('check from date and to date')
+
+    else:
+
+      trading_days = nse.get_hist(from_date=from_date,to_date=to_date).index
+      trading_days = list(trading_days.map(lambda x:x.date()))
+      data=pd.DataFrame()
+
+      for date in trading_days:
+          try:
+        
+            bhav  = nse.bhavcopy_fno(date).loc[symbol]
+            bhav=bhav[bhav["INSTRUMENT"].isin(["FUTSTK","FUTIDX"])]
+            expiry_list = list(bhav["EXPIRY_DT"].sort_values())
+            current_expiry = expiry_list[0]
+
+            coi = bhav['OPEN_INT'].sum()
+            ccoi=bhav['CHG_IN_OI'].sum()
+
+            bhav["DATE"] = bhav["TIMESTAMP"].apply(lambda x: datetime.datetime.strptime(x,"%d-%b-%Y").date())
+            bhav = bhav[bhav["EXPIRY_DT"]==current_expiry]
+
+            bhav['OPEN_INT']=coi
+            bhav['CHG_IN_OI']=ccoi
+
+            bhav.set_index("DATE",inplace=True)
+            data = data.append(bhav)
+            
+          except Exception as e:
+            print(f"error {e} for {date}")
+
+      data = data[
+      [
+        "EXPIRY_DT",
+         "OPEN",
+         "HIGH",
+         "LOW",
+         "CLOSE",
+         "CONTRACTS",
+         "OPEN_INT",
+         "CHG_IN_OI",
+
+      ]
+      
+      ]      
+      data.columns = [col.lower() for col in data.columns]
+      data.index = data.index.map(pd.to_datetime)
+
+      oi_plots = [mpf.make_addplot(data["open_int"],panel=1,ylabel="coi")]
+      fig, ax =mpf.plot(
+            data,
+            addplot=oi_plots,
+            type="candle",
+            style="yahoo",
+            returnfig=True,
+            figratio=(16,7),
+            figscale=1.2,
+            title=f"{symbol} Cumulative OI"
+        )
+      st.write(fig)  
+
+      st.write(data)
 
 
 analysis_dict = {"Bhavcopy": bhavcopy_display,
                  "Stock Delivery Data":stock_deliv_data,
-                 "High/Low Delivery":high_low_deliv
+                 "High/Low Delivery":high_low_deliv,
+                 "Stock OI Data":stock_oi_data,
 } 
 
 with st.sidebar:
